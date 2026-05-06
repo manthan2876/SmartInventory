@@ -45,4 +45,45 @@ class SyncService {
       print('Error syncing stock log to Firebase: $e');
     }
   }
+
+  // Fetch all products from Firebase
+  Future<List<Product>> fetchProducts() async {
+    try {
+      final snapshot = await _firestore.collection('products').get();
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return Product(
+          id: data['id'],
+          name: data['name'],
+          category: data['category'],
+          quantity: data['quantity'],
+          threshold: data['threshold'],
+        );
+      }).toList();
+    } catch (e) {
+      print('Error fetching products from Firebase: $e');
+      return [];
+    }
+  }
+
+  // Fetch all stock logs from Firebase
+  Future<List<StockLog>> fetchStockLogs() async {
+    try {
+      final snapshot = await _firestore.collection('stock_logs').get();
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return StockLog(
+          id: data['id'],
+          productId: data['productId'],
+          productName: data['productName'],
+          type: data['type'],
+          amount: data['amount'],
+          timestamp: DateTime.fromMillisecondsSinceEpoch(data['timestamp']),
+        );
+      }).toList();
+    } catch (e) {
+      print('Error fetching stock logs from Firebase: $e');
+      return [];
+    }
+  }
 }

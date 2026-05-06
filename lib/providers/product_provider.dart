@@ -10,7 +10,21 @@ class ProductNotifier extends Notifier<List<Product>> {
   @override
   List<Product> build() {
     _box = Hive.box('products');
+    
+    // Trigger background fetch from Firestore to populate Hive
+    _syncFromFirebase();
+    
     return _box.values.cast<Product>().toList();
+  }
+
+  Future<void> _syncFromFirebase() async {
+    final remoteProducts = await _syncService.fetchProducts();
+    if (remoteProducts.isNotEmpty) {
+      for (var p in remoteProducts) {
+        _box.put(p.id, p);
+      }
+      state = _box.values.cast<Product>().toList();
+    }
   }
 
   void addProduct(Product product) {
