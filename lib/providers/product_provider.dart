@@ -1,14 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 import '../models/product.dart';
+import '../services/sync_service.dart';
 
 class ProductNotifier extends Notifier<List<Product>> {
+  late Box _box;
+  final SyncService _syncService = SyncService();
+
   @override
   List<Product> build() {
-    return [];
+    _box = Hive.box('products');
+    return _box.values.cast<Product>().toList();
   }
 
   void addProduct(Product product) {
     state = [...state, product];
+    _box.put(product.id, product);
+    _syncService.syncProduct(product);
   }
 
   void updateProduct(Product updatedProduct) {
@@ -16,14 +24,19 @@ class ProductNotifier extends Notifier<List<Product>> {
       for (final product in state)
         if (product.id == updatedProduct.id) updatedProduct else product
     ];
+    _box.put(updatedProduct.id, updatedProduct);
+    _syncService.syncProduct(updatedProduct);
   }
 
   void deleteProduct(String id) {
     state = state.where((p) => p.id != id).toList();
+    _box.delete(id);
+    _syncService.deleteProduct(id);
   }
 
   bool updateStock(String id, int amount, String type) {
     bool success = false;
+    Product? targetProduct;
     state = [
       for (final product in state)
         if (product.id == id)
@@ -40,11 +53,19 @@ class ProductNotifier extends Notifier<List<Product>> {
                 success = false; // Cannot have negative stock
               }
             }
-            return success ? product.copyWith(quantity: newQuantity) : product;
+            final updated = success ? product.copyWith(quantity: newQuantity) : product;
+            if (success) targetProduct = updated;
+            return updated;
           }()
         else
           product
     ];
+    
+    if (success && targetProduct != null) {
+      _box.put(targetProduct!.id, targetProduct!);
+      _syncService.syncProduct(targetProduct!);
+    }
+    
     return success;
   }
 }

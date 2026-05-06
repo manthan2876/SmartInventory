@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'screens/main_navigation.dart';
+import 'models/adapters.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized before calling native code
@@ -16,6 +17,11 @@ void main() async {
   
   // Initialize Hive for local storage
   await Hive.initFlutter();
+  Hive.registerAdapter(ProductAdapter());
+  Hive.registerAdapter(StockLogAdapter());
+  
+  await Hive.openBox('products');
+  await Hive.openBox('stock_logs');
   
   // Run the app wrapped in ProviderScope for Riverpod state management
   runApp(
