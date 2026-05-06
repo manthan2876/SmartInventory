@@ -1,29 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+import '../models/product.dart';
+import '../models/stock_log.dart';
+import '../providers/product_provider.dart';
+import '../providers/stock_log_provider.dart';
 
-class StockUpdateScreen extends StatelessWidget {
+class StockUpdateScreen extends ConsumerWidget {
   const StockUpdateScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final products = ref.watch(productProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Update Stock', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          const Text('Select a product to update stock', style: TextStyle(fontSize: 16)),
-          const SizedBox(height: 16),
-          _buildStockItem(context, 'Paracetamol 500mg', '150 available', Colors.green),
-          _buildStockItem(context, 'Surgical Masks', '12 available', Colors.orange),
-          _buildStockItem(context, 'Hand Sanitizer 500ml', '2 available', Colors.red),
-        ],
-      ),
+      body: products.isEmpty
+          ? const Center(child: Text('No products available. Add a product first.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                final isCritical = product.quantity == 0;
+                final isLow = product.quantity <= product.threshold && !isCritical;
+                
+                Color statusColor = Colors.green;
+                if (isCritical) statusColor = Colors.red;
+                else if (isLow) statusColor = Colors.orange;
+
+                return _buildStockItem(context, ref, product, statusColor);
+              },
+            ),
     );
   }
 
-  Widget _buildStockItem(BuildContext context, String title, String subtitle, Color statusColor) {
+  Widget _buildStockItem(BuildContext context, WidgetRef ref, Product product, Color statusColor) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -41,25 +56,21 @@ class StockUpdateScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(subtitle, style: TextStyle(color: Colors.grey.shade700)),
+                  Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('${product.quantity} available', style: TextStyle(color: Colors.grey.shade700)),
                 ],
               ),
             ),
             Row(
               children: [
                 IconButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock Out Recorded')));
-                  },
+                  onPressed: () => _updateStock(context, ref, product, 'OUT', 1),
                   icon: const Icon(Icons.remove_circle_outline),
                   color: Colors.red,
                   tooltip: 'Stock Out',
                 ),
                 IconButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock In Recorded')));
-                  },
+                  onPressed: () => _updateStock(context, ref, product, 'IN', 1),
                   icon: const Icon(Icons.add_circle_outline),
                   color: Colors.green,
                   tooltip: 'Stock In',
@@ -70,5 +81,37 @@ class StockUpdateScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _updateStock(BuildContext context, WidgetRef ref, Product product, String type, int amount) {
+    final success = ref.read(productProvider.notifier).updateStock(product.id, amount, type);
+    
+    if (success) {
+      final log = StockLog(
+        id: const Uuid().v4(),
+        productId: product.id,
+        productName: product.name,
+        type: type,
+        amount: amount,
+        timestamp: DateTime.now(),
+      );
+      ref.read(stockLogProvider.notifier).addLog(log);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Stock ${type == 'IN' ? 'Added' : 'Removed'} successfully!'), 
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: Insufficient stock!'), 
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 }

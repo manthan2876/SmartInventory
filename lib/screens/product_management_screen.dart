@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+import '../models/product.dart';
+import '../models/stock_log.dart';
+import '../providers/product_provider.dart';
+import '../providers/stock_log_provider.dart';
 
-class ProductManagementScreen extends StatefulWidget {
+class ProductManagementScreen extends ConsumerStatefulWidget {
   const ProductManagementScreen({super.key});
 
   @override
-  State<ProductManagementScreen> createState() => _ProductManagementScreenState();
+  ConsumerState<ProductManagementScreen> createState() => _ProductManagementScreenState();
 }
 
-class _ProductManagementScreenState extends State<ProductManagementScreen> {
+class _ProductManagementScreenState extends ConsumerState<ProductManagementScreen> {
   final _formKey = GlobalKey<FormState>();
   
   final _nameController = TextEditingController();
@@ -26,11 +32,42 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
 
   void _saveProduct() {
     if (_formKey.currentState!.validate()) {
-      // Mock save action
+      final name = _nameController.text.trim();
+      final category = _categoryController.text.trim();
+      final quantity = int.parse(_quantityController.text.trim());
+      final threshold = int.parse(_thresholdController.text.trim());
+      final productId = const Uuid().v4();
+
+      final newProduct = Product(
+        id: productId,
+        name: name,
+        category: category,
+        quantity: quantity,
+        threshold: threshold,
+      );
+
+      ref.read(productProvider.notifier).addProduct(newProduct);
+
+      // Log the initial stock
+      if (quantity > 0) {
+        final log = StockLog(
+          id: const Uuid().v4(),
+          productId: productId,
+          productName: name,
+          type: 'IN',
+          amount: quantity,
+          timestamp: DateTime.now(),
+        );
+        ref.read(stockLogProvider.notifier).addLog(log);
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Product Saved Successfully!'), backgroundColor: Colors.green),
       );
       _formKey.currentState!.reset();
+      
+      // Remove focus from keyboard
+      FocusScope.of(context).unfocus();
     }
   }
 
@@ -86,7 +123,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) return 'Required';
-                        if (int.tryParse(value) == null) return 'Invalid number';
+                        if (int.tryParse(value) == null || int.parse(value) < 0) return 'Invalid number';
                         return null;
                       },
                     ),
@@ -103,7 +140,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) return 'Required';
-                        if (int.tryParse(value) == null) return 'Invalid number';
+                        if (int.tryParse(value) == null || int.parse(value) < 0) return 'Invalid number';
                         return null;
                       },
                     ),

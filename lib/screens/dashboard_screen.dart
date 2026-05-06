@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import '../providers/product_provider.dart';
+import '../providers/stock_log_provider.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final products = ref.watch(productProvider);
+    final lowStockProducts = ref.watch(lowStockProvider);
+    final stockLogs = ref.watch(stockLogProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inventory Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -20,20 +28,20 @@ class DashboardScreen extends StatelessWidget {
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               color: Theme.of(context).colorScheme.primaryContainer,
-              child: const Padding(
-                padding: EdgeInsets.all(24.0),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Total Products', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                        SizedBox(height: 8),
-                        Text('124', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                        const Text('Total Products', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 8),
+                        Text('${products.length}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                    Icon(Icons.inventory_2, size: 48, color: Colors.teal),
+                    const Icon(Icons.inventory_2, size: 48, color: Colors.teal),
                   ],
                 ),
               ),
@@ -44,31 +52,53 @@ class DashboardScreen extends StatelessWidget {
             const Text('Stock Alerts', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             
-            // Normal Stock Mock
-            _buildAlertCard(context, 'Paracetamol 500mg', '150 available', Colors.green, Icons.check_circle),
-            
-            // Low Stock Mock
-            _buildAlertCard(context, 'Surgical Masks', '12 available (Min: 50)', Colors.orange, Icons.warning_amber_rounded),
-            
-            // Critical Stock Mock
-            _buildAlertCard(context, 'Hand Sanitizer 500ml', '2 available (Min: 20)', Colors.red, Icons.error_outline),
+            if (lowStockProducts.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('All stock levels are normal.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                ),
+              )
+            else
+              ...lowStockProducts.map((p) {
+                final isCritical = p.quantity == 0;
+                final color = isCritical ? Colors.red : Colors.orange;
+                final icon = isCritical ? Icons.error_outline : Icons.warning_amber_rounded;
+                return _buildAlertCard(
+                  context, 
+                  p.name, 
+                  '${p.quantity} available (Min: ${p.threshold})', 
+                  color, 
+                  icon
+                );
+              }),
             
             const SizedBox(height: 24),
             const Text('Recent Activity', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             
-            ListTile(
-              leading: const CircleAvatar(backgroundColor: Colors.green, child: Icon(Icons.add, color: Colors.white)),
-              title: const Text('Added Paracetamol 500mg'),
-              subtitle: const Text('Today, 10:30 AM'),
-              trailing: const Text('+50', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16)),
-            ),
-            ListTile(
-              leading: const CircleAvatar(backgroundColor: Colors.redAccent, child: Icon(Icons.remove, color: Colors.white)),
-              title: const Text('Used Surgical Masks'),
-              subtitle: const Text('Today, 09:15 AM'),
-              trailing: const Text('-10', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent, fontSize: 16)),
-            ),
+            if (stockLogs.isEmpty)
+              const Center(child: Text('No recent activity.'))
+            else
+              ...stockLogs.take(5).map((log) {
+                final isAddition = log.type == 'IN';
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isAddition ? Colors.green : Colors.redAccent, 
+                    child: Icon(isAddition ? Icons.add : Icons.remove, color: Colors.white)
+                  ),
+                  title: Text('${isAddition ? 'Added' : 'Used'} ${log.productName}'),
+                  subtitle: Text(DateFormat('MMM dd, yyyy - hh:mm a').format(log.timestamp)),
+                  trailing: Text(
+                    '${isAddition ? '+' : '-'}${log.amount}', 
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      color: isAddition ? Colors.green : Colors.redAccent, 
+                      fontSize: 16
+                    )
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -86,7 +116,6 @@ class DashboardScreen extends StatelessWidget {
         leading: Icon(icon, color: color, size: 32),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(subtitle, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
